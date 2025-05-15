@@ -52,7 +52,11 @@ const Whiteboard = () => {
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
 
-    const socket = new WebSocket(`ws://localhost:8080/ws/canvas?roomId=${roomId}`);
+    const socket = new WebSocket(
+      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}${import.meta.env.VITE_WS_BASE_URL}?roomId=${roomId}`
+    );
+
+
     socketRef.current = socket;
 
     socket.onopen = () => {
