@@ -1,7 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import getUserId from '../utils/userId';
+import { useParams } from 'react-router-dom';
 
 const Whiteboard = () => {
+  const { roomId = 'default' } = useParams();
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
   const socketRef = useRef(null);
@@ -10,12 +12,37 @@ const Whiteboard = () => {
   const userId = useRef(getUserId());
   const [color, setColor] = useState('#000000');
   const [lineWidth, setLineWidth] = useState(2);
-  const [strokes, setStrokes] = useState([]); // 전체 stroke
-  const [myStrokes, setMyStrokes] = useState([]); // 내 stroke만
+  const [strokes, setStrokes] = useState([]);
+  const [myStrokes, setMyStrokes] = useState([]);
 
   const currentStroke = useRef([]);
 
-  // Canvas 및 WebSocket 초기화
+  const drawBackground = () => {
+  const ctx = ctxRef.current;
+  const canvas = canvasRef.current;
+  const { width, height } = canvas;
+
+  // 배경 색상
+  ctx.save();
+  ctx.fillStyle = '#fdf6e3'; // 연한 베이지
+  ctx.fillRect(0, 0, width, height);
+
+  // 가로줄
+  ctx.strokeStyle = '#d0cfc7'; // 회색 줄
+  ctx.lineWidth = 1;
+  const lineSpacing = 32;
+
+  for (let y = lineSpacing; y < height; y += lineSpacing) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+};
+
+
   useEffect(() => {
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
@@ -25,11 +52,11 @@ const Whiteboard = () => {
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
 
-    const socket = new WebSocket('ws://localhost:8080/ws/canvas');
+    const socket = new WebSocket(`ws://localhost:8080/ws/canvas?roomId=${roomId}`);
     socketRef.current = socket;
 
     socket.onopen = () => {
-      console.log('WebSocket 연결됨');
+      console.log('✅ WebSocket 연결됨');
     };
 
     socket.onmessage = (event) => {
@@ -40,8 +67,6 @@ const Whiteboard = () => {
       }
 
       if (data.type === 'undo') {
-        console.log("🧨 undo 수신", data.userId);
-
         setStrokes(prev => {
           const updated = [...prev];
           const idx = [...updated].reverse().findIndex(s => s.userId === data.userId);
@@ -59,13 +84,12 @@ const Whiteboard = () => {
     };
 
     socket.onclose = () => {
-      console.log('WebSocket 연결 종료됨');
+      console.log('❎ WebSocket 연결 종료됨');
     };
 
     return () => socket.close();
-  }, []);
+  }, [roomId]);
 
-  // strokes 배열 변경 시 canvas 다시 그리기
   useEffect(() => {
     redraw(strokes);
   }, [strokes]);
@@ -107,7 +131,6 @@ const Whiteboard = () => {
 
   const drawStroke = (stroke) => {
     if (!stroke.points?.length) return;
-
     const ctx = ctxRef.current;
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
@@ -122,11 +145,11 @@ const Whiteboard = () => {
   const redraw = (strokeList) => {
     const ctx = ctxRef.current;
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    drawBackground();
     strokeList.forEach(drawStroke);
   };
 
   const handleUndo = () => {
-    if (myStrokes.length === 0) return;
     socketRef.current.send(JSON.stringify({
       type: 'undo',
       userId: userId.current
@@ -135,7 +158,6 @@ const Whiteboard = () => {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* 툴바 UI */}
       <div style={{
         position: 'absolute',
         top: 20,
@@ -149,44 +171,27 @@ const Whiteboard = () => {
         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
         alignItems: 'center'
       }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          🎨
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+        <label>
+          🎨 <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          ✏️
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={lineWidth}
-            onChange={(e) => setLineWidth(Number(e.target.value))}
-          />
+        <label>
+          ✏️ <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => setLineWidth(Number(e.target.value))} />
         </label>
-        <button
-          onClick={handleUndo}
-          style={{
-            background: '#ff5c5c',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '6px 12px',
-            cursor: 'pointer'
-          }}
-        >
+        <button onClick={handleUndo} style={{
+          background: '#ff5c5c',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          padding: '6px 12px',
+          cursor: 'pointer'
+        }}>
           ⬅ Undo
         </button>
       </div>
 
-      {/* 캔버스 */}
       <canvas
         ref={canvasRef}
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'block',
-          cursor: 'crosshair'
-        }}
+        style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
         onMouseDown={startDrawing}
         onMouseMove={draw}
         onMouseUp={endDrawing}
