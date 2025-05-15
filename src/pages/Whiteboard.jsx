@@ -49,7 +49,6 @@ const Whiteboard = () => {
     const socket = new WebSocket(
       `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}${import.meta.env.VITE_WS_BASE_URL}?roomId=${roomId}`
     );
-    
     socketRef.current = socket;
 
     socket.onopen = () => console.log('✅ WebSocket 연결됨');
@@ -88,18 +87,20 @@ const Whiteboard = () => {
   const startDrawing = (e) => {
     drawing.current = true;
     currentStroke.current = [{ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }];
-    ctxRef.current.beginPath();
-    ctxRef.current.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    const ctx = ctxRef.current;
+    ctx.beginPath();
+    ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
   };
 
   const draw = (e) => {
     if (!drawing.current) return;
     const x = e.nativeEvent.offsetX;
     const y = e.nativeEvent.offsetY;
-    ctxRef.current.lineTo(x, y);
-    ctxRef.current.strokeStyle = color;
-    ctxRef.current.lineWidth = lineWidth;
-    ctxRef.current.stroke();
+    const ctx = ctxRef.current;
+    ctx.lineTo(x, y);
+    ctx.stroke();
     currentStroke.current.push({ x, y });
   };
 
@@ -147,33 +148,55 @@ const Whiteboard = () => {
     }));
   };
 
-  // ✅ 터치 이벤트 수동 등록
+  // ✅ 터치 이벤트
   useEffect(() => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
 
     const handleTouchStart = (e) => {
       const touch = e.touches[0];
-      startDrawing({
-        nativeEvent: {
-          offsetX: touch.clientX - rect.left,
-          offsetY: touch.clientY - rect.top
-        }
-      });
+      const offsetX = touch.clientX - rect.left;
+      const offsetY = touch.clientY - rect.top;
+
+      drawing.current = true;
+      currentStroke.current = [{ x: offsetX, y: offsetY }];
+
+      const ctx = ctxRef.current;
+      ctx.beginPath();
+      ctx.moveTo(offsetX, offsetY);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
     };
 
     const handleTouchMove = (e) => {
+      if (!drawing.current) return;
       e.preventDefault();
       const touch = e.touches[0];
-      draw({
-        nativeEvent: {
-          offsetX: touch.clientX - rect.left,
-          offsetY: touch.clientY - rect.top
-        }
-      });
+      const offsetX = touch.clientX - rect.left;
+      const offsetY = touch.clientY - rect.top;
+
+      const ctx = ctxRef.current;
+      ctx.lineTo(offsetX, offsetY);
+      ctx.stroke();
+      currentStroke.current.push({ x: offsetX, y: offsetY });
     };
 
-    const handleTouchEnd = () => endDrawing();
+    const handleTouchEnd = () => {
+      if (!drawing.current) return;
+      drawing.current = false;
+      ctxRef.current.closePath();
+
+      const strokeData = {
+        type: 'stroke',
+        userId: userId.current,
+        color,
+        width: lineWidth,
+        points: currentStroke.current
+      };
+
+      socketRef.current.send(JSON.stringify(strokeData));
+      setMyStrokes(prev => [...prev, strokeData]);
+    };
 
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -184,7 +207,7 @@ const Whiteboard = () => {
       canvas.removeEventListener('touchmove', handleTouchMove);
       canvas.removeEventListener('touchend', handleTouchEnd);
     };
-  }, []);
+  }, [color, lineWidth]);
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
@@ -208,20 +231,19 @@ const Whiteboard = () => {
           ✏️ <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => setLineWidth(Number(e.target.value))} />
         </label>
         <button onClick={handleUndo} style={{
-        background: '#4CAF50', // 상큼한 연두색 계열
-        color: '#fff',
-        border: 'none',
-        borderRadius: '6px',
-        padding: '6px 12px',
-        fontSize: '16px',
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px'
+          background: '#4CAF50',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '6px',
+          padding: '6px 12px',
+          fontSize: '16px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
         }}>
-        ⟳
+          ⟳
         </button>
-
       </div>
 
       <canvas
@@ -231,7 +253,7 @@ const Whiteboard = () => {
           height: '100%',
           display: 'block',
           cursor: 'crosshair',
-          touchAction: 'none' // 💡 스크롤 방지
+          touchAction: 'none'
         }}
         onMouseDown={startDrawing}
         onMouseMove={draw}
