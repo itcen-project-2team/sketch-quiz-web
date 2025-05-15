@@ -1,3 +1,4 @@
+// Whiteboard.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import getUserId from '../utils/userId';
 import { useParams } from 'react-router-dom';
@@ -14,50 +15,42 @@ const Whiteboard = () => {
   const [lineWidth, setLineWidth] = useState(2);
   const [strokes, setStrokes] = useState([]);
   const [myStrokes, setMyStrokes] = useState([]);
-
   const currentStroke = useRef([]);
 
   const drawBackground = () => {
-  const ctx = ctxRef.current;
-  const canvas = canvasRef.current;
-  const { width, height } = canvas;
+    const ctx = ctxRef.current;
+    const canvas = canvasRef.current;
+    const { width, height } = canvas;
 
-  // 배경 색상
-  ctx.save();
-  ctx.fillStyle = '#fdf6e3'; // 연한 베이지
-  ctx.fillRect(0, 0, width, height);
+    ctx.save();
+    ctx.fillStyle = '#fdf6e3';
+    ctx.fillRect(0, 0, width, height);
 
-  // 가로줄
-  ctx.strokeStyle = '#d0cfc7'; // 회색 줄
-  ctx.lineWidth = 1;
-  const lineSpacing = 32;
+    ctx.strokeStyle = '#d0cfc7';
+    ctx.lineWidth = 1;
+    const lineSpacing = 32;
+    for (let y = lineSpacing; y < height; y += lineSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
 
-  for (let y = lineSpacing; y < height; y += lineSpacing) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
-
-  ctx.restore();
-};
-
+    ctx.restore();
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-
     const ctx = canvas.getContext('2d');
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
 
-    const socket = new WebSocket(`ws://localhost:8080/ws/canvas?roomId=${roomId}`);
+    const socket = new WebSocket(`ws://10.126.109.177:8080/ws/canvas?roomId=${roomId}`);
     socketRef.current = socket;
 
-    socket.onopen = () => {
-      console.log('✅ WebSocket 연결됨');
-    };
+    socket.onopen = () => console.log('✅ WebSocket 연결됨');
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -71,21 +64,17 @@ const Whiteboard = () => {
           const updated = [...prev];
           const idx = [...updated].reverse().findIndex(s => s.userId === data.userId);
           if (idx !== -1) {
-            const realIndex = updated.length - 1 - idx;
-            updated.splice(realIndex, 1);
+            updated.splice(updated.length - 1 - idx, 1);
           }
           return updated;
         });
-
         if (data.userId === userId.current) {
           setMyStrokes(prev => prev.slice(0, -1));
         }
       }
     };
 
-    socket.onclose = () => {
-      console.log('❎ WebSocket 연결 종료됨');
-    };
+    socket.onclose = () => console.log('❎ WebSocket 연결 종료됨');
 
     return () => socket.close();
   }, [roomId]);
@@ -156,6 +145,45 @@ const Whiteboard = () => {
     }));
   };
 
+  // ✅ 터치 이벤트 수동 등록
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+
+    const handleTouchStart = (e) => {
+      const touch = e.touches[0];
+      startDrawing({
+        nativeEvent: {
+          offsetX: touch.clientX - rect.left,
+          offsetY: touch.clientY - rect.top
+        }
+      });
+    };
+
+    const handleTouchMove = (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      draw({
+        nativeEvent: {
+          offsetX: touch.clientX - rect.left,
+          offsetY: touch.clientY - rect.top
+        }
+      });
+    };
+
+    const handleTouchEnd = () => endDrawing();
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       <div style={{
@@ -178,20 +206,31 @@ const Whiteboard = () => {
           ✏️ <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => setLineWidth(Number(e.target.value))} />
         </label>
         <button onClick={handleUndo} style={{
-          background: '#ff5c5c',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '6px',
-          padding: '6px 12px',
-          cursor: 'pointer'
+        background: '#4CAF50', // 상큼한 연두색 계열
+        color: '#fff',
+        border: 'none',
+        borderRadius: '6px',
+        padding: '6px 12px',
+        fontSize: '16px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px'
         }}>
-          ⬅ Undo
+        ⟳
         </button>
+
       </div>
 
       <canvas
         ref={canvasRef}
-        style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          cursor: 'crosshair',
+          touchAction: 'none' // 💡 스크롤 방지
+        }}
         onMouseDown={startDrawing}
         onMouseMove={draw}
         onMouseUp={endDrawing}
