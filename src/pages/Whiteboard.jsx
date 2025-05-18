@@ -51,7 +51,7 @@ const Whiteboard = () => {
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
     const socket = new WebSocket(
-      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${import.meta.env.VITE_WS_BASE_URL}?roomId=${roomId}`
+      `${import.meta.env.VITE_WS_BASE_URL}?roomId=${roomId}`
     );
     socketRef.current = socket;
 
