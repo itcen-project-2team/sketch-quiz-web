@@ -174,8 +174,14 @@ const Whiteboard = () => {
 
   const sendMessage = () => {
     if (message.trim() === '') return;
-
-    socketRef.current.send(JSON.stringify({
+  
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket is not open yet.');
+      return;
+    }
+  
+    socket.send(JSON.stringify({
       type: 'chat',
       chatType: 'CHAT',
       userId: userId.current,
@@ -183,6 +189,7 @@ const Whiteboard = () => {
     }));
     setMessage('');
   };
+  
 
   // ✅ 터치 이벤트
   useEffect(() => {
