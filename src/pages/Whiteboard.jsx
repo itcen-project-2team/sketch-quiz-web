@@ -51,12 +51,19 @@ const Whiteboard = () => {
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
     const socket = new WebSocket(
-      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}${import.meta.env.VITE_WS_BASE_URL}?roomId=${roomId}`
+      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${import.meta.env.VITE_WS_BASE_URL}?roomId=${roomId}`
     );
     socketRef.current = socket;
 
     socket.onopen = () => {
       console.log('✅ WebSocket 연결됨');
+      
+      socket.send(JSON.stringify({
+        type: 'chat',
+        chatType: 'CONNECTION',
+        userId: userId.current,
+        message: `${userId.current}님이 입장하셨습니다.`
+      }));
     };
 
     socket.onmessage = (event) => {
