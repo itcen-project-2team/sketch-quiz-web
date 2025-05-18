@@ -1,3 +1,4 @@
+// Whiteboard.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import getUserId from '../utils/userId';
 import { useParams } from 'react-router-dom';
@@ -14,7 +15,6 @@ const Whiteboard = () => {
   const [lineWidth, setLineWidth] = useState(2);
   const [strokes, setStrokes] = useState([]);
   const [myStrokes, setMyStrokes] = useState([]);
-
   const currentStroke = useRef([]);
   const [chatLog, setChatLog] = useState([]);
   const [message, setMessage] = useState('');
@@ -28,16 +28,17 @@ const Whiteboard = () => {
     ctx.fillStyle = '#fdf6e3';
     ctx.fillRect(0, 0, width, height);
 
-    ctx.strokeStyle = '#d0cfc7';
-    ctx.lineWidth = 1;
-    const lineSpacing = 32;
+  // 가로줄
+  ctx.strokeStyle = '#d0cfc7'; // 회색 줄
+  ctx.lineWidth = 1;
+  const lineSpacing = 32;
 
-    for (let y = lineSpacing; y < height; y += lineSpacing) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
+  for (let y = lineSpacing; y < height; y += lineSpacing) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
 
     ctx.restore();
   };
@@ -46,22 +47,16 @@ const Whiteboard = () => {
     const canvas = canvasRef.current;
     canvas.width = window.innerWidth * 2 / 3;
     canvas.height = window.innerHeight;
-
     const ctx = canvas.getContext('2d');
     ctx.lineCap = 'round';
     ctxRef.current = ctx;
-
-    const socket = new WebSocket(`ws://localhost:8080/ws/canvas?roomId=${roomId}`);
+    const socket = new WebSocket(
+      `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}${import.meta.env.VITE_WS_BASE_URL}?roomId=${roomId}`
+    );
     socketRef.current = socket;
 
     socket.onopen = () => {
       console.log('✅ WebSocket 연결됨');
-      socket.send(JSON.stringify({
-        type: 'chat',
-        chatType: 'CONNECTION',
-        userId: userId.current,
-        message: `${userId.current}님이 입장하셨습니다.`
-      }));
     };
 
     socket.onmessage = (event) => {
@@ -74,12 +69,10 @@ const Whiteboard = () => {
           const updated = [...prev];
           const idx = [...updated].reverse().findIndex(s => s.userId === data.userId);
           if (idx !== -1) {
-            const realIndex = updated.length - 1 - idx;
-            updated.splice(realIndex, 1);
+            updated.splice(updated.length - 1 - idx, 1);
           }
           return updated;
         });
-
         if (data.userId === userId.current) {
           setMyStrokes(prev => prev.slice(0, -1));
         }
@@ -88,9 +81,7 @@ const Whiteboard = () => {
       }
     };
 
-    socket.onclose = () => {
-      console.log('❎ WebSocket 연결 종료됨');
-    };
+    socket.onclose = () => console.log('❎ WebSocket 연결 종료됨');
 
     // ✅ 브라우저 닫기/새로고침 시 자동 퇴장 처리
     const handleBeforeUnload = () => {
@@ -120,18 +111,20 @@ const Whiteboard = () => {
   const startDrawing = (e) => {
     drawing.current = true;
     currentStroke.current = [{ x: e.nativeEvent.offsetX, y: e.nativeEvent.offsetY }];
-    ctxRef.current.beginPath();
-    ctxRef.current.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    const ctx = ctxRef.current;
+    ctx.beginPath();
+    ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
   };
 
   const draw = (e) => {
     if (!drawing.current) return;
     const x = e.nativeEvent.offsetX;
     const y = e.nativeEvent.offsetY;
-    ctxRef.current.lineTo(x, y);
-    ctxRef.current.strokeStyle = color;
-    ctxRef.current.lineWidth = lineWidth;
-    ctxRef.current.stroke();
+    const ctx = ctxRef.current;
+    ctx.lineTo(x, y);
+    ctx.stroke();
     currentStroke.current.push({ x, y });
   };
 
@@ -190,6 +183,67 @@ const Whiteboard = () => {
     }));
     setMessage('');
   };
+
+  // ✅ 터치 이벤트
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+
+    const handleTouchStart = (e) => {
+      const touch = e.touches[0];
+      const offsetX = touch.clientX - rect.left;
+      const offsetY = touch.clientY - rect.top;
+
+      drawing.current = true;
+      currentStroke.current = [{ x: offsetX, y: offsetY }];
+
+      const ctx = ctxRef.current;
+      ctx.beginPath();
+      ctx.moveTo(offsetX, offsetY);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+    };
+
+    const handleTouchMove = (e) => {
+      if (!drawing.current) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const offsetX = touch.clientX - rect.left;
+      const offsetY = touch.clientY - rect.top;
+
+      const ctx = ctxRef.current;
+      ctx.lineTo(offsetX, offsetY);
+      ctx.stroke();
+      currentStroke.current.push({ x: offsetX, y: offsetY });
+    };
+
+    const handleTouchEnd = () => {
+      if (!drawing.current) return;
+      drawing.current = false;
+      ctxRef.current.closePath();
+
+      const strokeData = {
+        type: 'stroke',
+        userId: userId.current,
+        color,
+        width: lineWidth,
+        points: currentStroke.current
+      };
+
+      socketRef.current.send(JSON.stringify(strokeData));
+      setMyStrokes(prev => [...prev, strokeData]);
+    };
+
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [color, lineWidth]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
@@ -296,26 +350,30 @@ const Whiteboard = () => {
             ✏️ <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => setLineWidth(Number(e.target.value))} />
           </label>
           <button onClick={handleUndo} style={{
-            background: '#ff5c5c',
+            background: '#4CAF50',
             color: '#fff',
             border: 'none',
             borderRadius: '6px',
             padding: '6px 12px',
-            cursor: 'pointer'
+            fontSize: '16px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}>
-            ⬅ Undo
+            ⟳
           </button>
         </div>
 
-        <canvas
-          ref={canvasRef}
-          style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={endDrawing}
-          onMouseLeave={endDrawing}
+      <canvas
+        ref={canvasRef}
+        style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
+        onMouseDown={startDrawing}
+        onMouseMove={draw}
+        onMouseUp={endDrawing}
+        onMouseLeave={endDrawing}
         />
-      </div>
+        </div>
     </div>
   );
 };
