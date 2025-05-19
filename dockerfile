@@ -3,13 +3,11 @@ FROM node:20 AS build
 
 WORKDIR /app
 
-# 먼저 패키지 설치 관련 파일 복사
+# package.json, .env 복사
 COPY package*.json ./
+COPY .env .env   # 반드시 포함되어야 Vite가 환경변수 인식
 
-# .env 복사 (중요)
-COPY .env ./
-
-# 나머지 소스 코드 복사
+# 나머지 소스 복사
 COPY . .
 
 RUN npm install && npm run build
@@ -17,10 +15,8 @@ RUN npm install && npm run build
 # 2단계: NGINX 서버
 FROM nginx:stable-alpine
 
-# 복사
+# 빌드된 결과물 복사
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# NGINX 설정 복사
+# NGINX 설정 복사 (필요할 경우)
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
-
-# xptmxm
