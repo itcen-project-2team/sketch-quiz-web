@@ -53,7 +53,7 @@ pipeline {
               docker rm nginx-web || true &&
               docker run -d --name nginx-web -p 80:80 ${IMAGE_NAME}
             '
-          """
+          """ //테스트
         }
       }
     }
