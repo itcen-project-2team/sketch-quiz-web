@@ -5,7 +5,8 @@ WORKDIR /app
 
 # package.json, .env 복사
 COPY package*.json ./
-COPY .env .env   # 반드시 포함되어야 Vite가 환경변수 인식
+
+# COPY .env .env   # 반드시 포함되어야 Vite가 환경변수 인식
 
 # 나머지 소스 복사
 COPY . .
