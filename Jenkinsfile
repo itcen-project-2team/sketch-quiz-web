@@ -2,9 +2,9 @@ pipeline {
   agent any
 
   environment {
-    DOCKERHUB_CREDENTIALS = 'dockerhub-cred'  // Jenkins Credential ID
-    IMAGE_NAME = 'visionn7111/sketch-quiz-web' // Docker Hub 이미지명
-    SERVER_IP = "${env.WEB_IP}"  // Jenkins 환경변수에서 웹서버 IP 가져오기
+    DOCKERHUB_CREDENTIALS = 'dockerhub-cred'          // DockerHub 자격증명 ID
+    IMAGE_NAME = 'visionn7111/sketch-quiz-web'        // DockerHub 리포 이름
+    SERVER_IP = "${env.WEB_IP}"                       // Jenkins 환경변수 (Web 서버 IP)
   }
 
   stages {
@@ -29,7 +29,7 @@ VITE_WS_BASE_URL=/ws/canvas
       }
     }
 
-    stage('Docker Build (ARM local)') {
+    stage('Docker Build (ARM)') {
       steps {
         sh 'docker build -t $IMAGE_NAME .'
       }
