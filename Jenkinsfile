@@ -2,23 +2,30 @@ pipeline {
   agent any
 
   environment {
-    DOCKERHUB_CREDENTIALS = 'dockerhub-cred'
-    IMAGE_NAME = 'visionn7111/sketch-quiz-web'
-    SERVER_IP = "${env.WEB_IP}"   // Jenkins 환경 설정에서 불러옴
+    DOCKERHUB_CREDENTIALS = 'dockerhub-cred'  // Jenkins Credential ID
+    IMAGE_NAME = 'visionn7111/sketch-quiz-web' // Docker Hub 이미지명
+    SERVER_IP = "${env.WEB_IP}"  // Jenkins 환경변수에서 웹서버 IP 가져오기
   }
 
   stages {
-    stage('Clone') {
+    stage('Clone Repository') {
       steps {
         git url: 'https://github.com/itcen-project-2team/sketch-quiz-web', branch: 'main'
       }
     }
 
-    stage('Generate .env') {
+    stage('Generate .env.production') {
       steps {
-        writeFile file: '.env', text: '''
-VITE_BACKEND_URL=http://10.0.2.179:8080
-'''
+        writeFile file: '.env.production', text: """
+VITE_BACKEND_URL=http://${env.SERVER_IP}:8080
+VITE_WS_BASE_URL=/ws/canvas
+"""
+      }
+    }
+
+    stage('Prepare .env for Docker') {
+      steps {
+        sh 'cp .env.production .env'
       }
     }
 
