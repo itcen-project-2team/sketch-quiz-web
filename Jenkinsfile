@@ -13,6 +13,14 @@ pipeline {
         git url: 'https://github.com/itcen-project-2team/sketch-quiz-web', branch: 'main'
       }
     }
+    stage('Generate .env.production') {
+      steps {
+        writeFile file: '.env.production', text: """
+VITE_BACKEND_URL=http://${env.SERVER_IP}:8080
+VITE_WS_BASE_URL=/ws/canvas
+"""
+      }
+    }
 
     stage('Docker Build (ARM local)') {
       steps {
