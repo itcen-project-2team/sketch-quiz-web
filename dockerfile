@@ -22,3 +22,5 @@ COPY --from=build /app/dist /usr/share/nginx/html
 
 # NGINX 설정 복사
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+
+# xptmxm
