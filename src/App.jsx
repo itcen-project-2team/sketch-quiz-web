@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
-import Whiteboard from './pages/Whiteboard';
+import Whiteboard from './pages/Whiteboard.jsx';
 
 function App() {
   return (
