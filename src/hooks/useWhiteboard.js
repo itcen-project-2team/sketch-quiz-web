@@ -125,7 +125,7 @@ const useWhiteboard = () => {
   // 스트로크 리렌더링
   useEffect(() => {
     redraw(strokes);
-  }, [redraw, strokes]);
+  }, [strokes]);
 
   // 드로잉 시작
   const startDrawing = (e) => {
